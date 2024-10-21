@@ -1,213 +1,193 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState } from 'react';
 import axios from 'axios';
 import './App.css';
-
-const AVIATION_API_KEY = '7500bfb2606f5b1c617898b7e5ec3f5e';
-const GOOGLE_MAPS_API_KEY = 'AIzaSyAFdVZeOyI04ntHEUqVsYqx7lRcXGLSsLg';
+import { GoogleMap, LoadScript, Marker } from '@react-google-maps/api';
 
 interface FlightInfo {
-  destination: string;
-  destinationCode: string;
-  arrivalTime: Date;
-  historicalData: {
-    totalFlights: number;
-    delayPercentage: string;
-    averageDelay: string;
-  };
+  destIcao: string;
+  eta: Date;
 }
 
-function App() {
+interface TravelInfo {
+  duration: string;
+  durationValue: number;
+  distance: string;
+}
+
+const App: React.FC = () => {
   const [flightNumber, setFlightNumber] = useState('');
   const [address, setAddress] = useState('');
-  const [bufferTime, setBufferTime] = useState('90');
-  const [result, setResult] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const [output, setOutput] = useState<string[]>([]);
 
-  useEffect(() => {
-    const script = document.createElement('script');
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=places`;
-    script.async = true;
-    script.onload = initAutocomplete;
-    document.body.appendChild(script);
-
-    return () => {
-      document.body.removeChild(script);
+  const getFlightInfo = async (flightNumber: string): Promise<FlightInfo | null> => {
+    const config = {
+      method: 'get',
+      url: `https://fr24api.flightradar24.com/api/live/flight-positions/full?flights=${flightNumber}`,
+      headers: {
+        'Accept': 'application/json',
+        'Accept-Version': 'v1',
+        'Authorization': 'Bearer 9d4956f4-e80d-4739-8a5a-4268542b21bc|rJ1Zw91FB0gwPVQfwcUboZq4p99MpZARFAVvHpBhc1bb24f7'
+      }
     };
-  }, []);
-
-  const initAutocomplete = () => {
-    if (inputRef.current) {
-      autocompleteRef.current = new google.maps.places.Autocomplete(inputRef.current, { types: ['address'] });
-    }
-  };
-
-  const getFlightInfo = async (flightNumber: string): Promise<FlightInfo> => {
-    const currentDate = new Date().toISOString().split('T')[0];
-    const threeMonthsAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-    
-    const url = `http://api.aviationstack.com/v1/flights?access_key=${AVIATION_API_KEY}&flight_iata=${flightNumber}&date_from=${threeMonthsAgo}&date_to=${currentDate}`;
 
     try {
-      const response = await axios.get(url);
-      const flights = response.data.data;
-
-      if (flights && flights.length > 0) {
-        const latestFlight = flights[0];
-        const historicalData = analyzeHistoricalData(flights);
-        
+      const response = await axios.request(config);
+      const flightData = response.data.data[0];
+      if (flightData && flightData.dest_icao && flightData.eta) {
         return {
-          destination: latestFlight.arrival.airport,
-          destinationCode: latestFlight.arrival.iata,
-          arrivalTime: new Date(latestFlight.arrival.scheduled),
-          historicalData: historicalData
+          destIcao: String(flightData.dest_icao),
+          eta: new Date(flightData.eta)
         };
       } else {
-        throw new Error('Flight not found or no information available.');
+        throw new Error('Invalid flight data');
       }
     } catch (error) {
-      throw new Error('Error fetching flight data: ' + (error as Error).message);
+      console.error("Error fetching flight info: This flight likely isn't airborne right now", error);
+      return null;
     }
   };
 
-  const analyzeHistoricalData = (flights: any[]) => {
-    let totalFlights = flights.length;
-    let delayedFlights = 0;
-    let totalDelayMinutes = 0;
-
-    flights.forEach(flight => {
-      if (flight.arrival.delay) {
-        delayedFlights++;
-        totalDelayMinutes += flight.arrival.delay;
+  const getHistoricFlightInfo = async (flightNumber: string): Promise<string | null> => {
+    const currentTime = Math.floor(Date.now() / 1000);
+    const twelveHoursAgo = currentTime - (12 * 60 * 60);
+    
+    const config = {
+      method: 'get',
+      url: `https://fr24api.flightradar24.com/api/historic/flight-positions/full?flights=${flightNumber}&timestamp=${twelveHoursAgo}`,
+      headers: {
+        'Accept': 'application/json',
+        'Accept-Version': 'v1',
+        'Authorization': 'Bearer 9d4956f4-e80d-4739-8a5a-4268542b21bc|rJ1Zw91FB0gwPVQfwcUboZq4p99MpZARFAVvHpBhc1bb24f7'
       }
-    });
-
-    return {
-      totalFlights: totalFlights,
-      delayPercentage: (delayedFlights / totalFlights * 100).toFixed(2),
-      averageDelay: (totalDelayMinutes / delayedFlights).toFixed(2)
     };
-  };
-
-  const getTravelTime = (origin: google.maps.LatLng, destination: string): Promise<number> => {
-    return new Promise((resolve, reject) => {
-      const service = new google.maps.DistanceMatrixService();
-      service.getDistanceMatrix(
-        {
-          origins: [origin],
-          destinations: [destination],
-          travelMode: google.maps.TravelMode.DRIVING,
-          unitSystem: google.maps.UnitSystem.METRIC,
-        },
-        (response, status) => {
-          if (status === 'OK' && response) {
-            resolve(response.rows[0].elements[0].duration.value);
-          } else {
-            reject('Error calculating travel time');
-          }
-        }
-      );
-    });
-  };
-
-  const planTravel = async () => {
-    setIsLoading(true);
-    setResult('Planning your travel...');
 
     try {
-      if (!flightNumber || !autocompleteRef.current || !autocompleteRef.current.getPlace() || isNaN(parseInt(bufferTime)) || parseInt(bufferTime) < 0) {
-        throw new Error('Please fill in all fields correctly.');
-      }
-
-      const selectedPlace = autocompleteRef.current.getPlace();
-      if (!selectedPlace.geometry || !selectedPlace.geometry.location) {
-        throw new Error('Please select a valid address from the dropdown.');
-      }
-
-      const flightInfo = await getFlightInfo(flightNumber);
-      const travelTimeInSeconds = await getTravelTime(
-        selectedPlace.geometry.location,
-        `${flightInfo.destinationCode} Airport`
-      );
-
-      const currentTime = new Date();
-      const travelTimeInMinutes = Math.ceil(travelTimeInSeconds / 60);
-
-      let historyHtml = `
-        <h3>Flight History (Last 3 Months)</h3>
-        <p>Total Flights: ${flightInfo.historicalData.totalFlights}</p>
-        <p>Percentage of Delayed Flights: ${flightInfo.historicalData.delayPercentage}%</p>
-        <p>Average Delay: ${flightInfo.historicalData.averageDelay} minutes</p>
-      `;
-
-      if (currentTime >= flightInfo.arrivalTime) {
-        setResult(`
-          <p><strong>Alert:</strong> Flight ${flightNumber} has already landed at ${flightInfo.destination} (${flightInfo.destinationCode}).</p>
-          <p>The flight was scheduled to arrive at ${flightInfo.arrivalTime.toLocaleString()}.</p>
-          <p>Your address: ${selectedPlace.formatted_address}</p>
-          <p>Estimated travel time to the airport: ${travelTimeInMinutes} minutes.</p>
-          <p><strong>Recommendation:</strong> Leave immediately if you need to pick someone up from this flight.</p>
-          ${historyHtml}
-        `);
+      const response = await axios.request(config);
+      const flightData = response.data.data[0];
+      if (flightData && flightData.dest_icao) {
+        return String(flightData.dest_icao);
       } else {
-        const departureTime = new Date(flightInfo.arrivalTime.getTime() - (travelTimeInMinutes + parseInt(bufferTime)) * 60000);
-        setResult(`
-          <p>Flight ${flightNumber} is scheduled to arrive at ${flightInfo.destination} (${flightInfo.destinationCode}) at ${flightInfo.arrivalTime.toLocaleString()}.</p>
-          <p>Your address: ${selectedPlace.formatted_address}</p>
-          <p>Estimated travel time from your address to the airport: ${travelTimeInMinutes} minutes.</p>
-          <p>With your preferred buffer time of ${bufferTime} minutes, you should leave by ${departureTime.toLocaleString()}.</p>
-          ${historyHtml}
-        `);
+        throw new Error('Invalid dest_icao in historic data');
       }
     } catch (error) {
-      setResult(`Error: ${(error as Error).message}`);
-    } finally {
-      setIsLoading(false);
+      console.error('Error fetching historic flight info:', error);
+      return null;
+    }
+  };
+
+  const getAirportCoordinates = async (icaoCode: string): Promise<[number, number]> => {
+    try {
+      const response = await axios.get('/airportdataset.json');
+      const airports = response.data;
+      const airport = airports.find((row: any) => row.icao.toUpperCase() === icaoCode.toUpperCase());
+      if (airport) {
+        return [parseFloat(airport.latitude), parseFloat(airport.longitude)];
+      } else {
+        throw new Error('Airport not found');
+      }
+    } catch (error) {
+      console.error('Error getting airport coordinates:', error);
+      throw error;
+    }
+  };
+
+  const getTravelTime = async (origin: string, destination: string): Promise<TravelInfo | null> => {
+    try {
+      const response = await axios.get('https://maps.googleapis.com/maps/api/distancematrix/json', {
+        params: {
+          origins: origin,
+          destinations: destination,
+          key: 'AIzaSyAFdVZeOyI04ntHEUqVsYqx7lRcXGLSsLg'
+        }
+      });
+
+      const result = response.data.rows[0].elements[0];
+      if (result.status === 'OK') {
+        return {
+          duration: result.duration.text,
+          durationValue: result.duration.value,
+          distance: result.distance.text
+        };
+      } else {
+        throw new Error("Error fetching travel time");
+      }
+    } catch (error) {
+      console.error('Error fetching travel time:', error);
+      return null;
+    }
+  };
+
+  const getFlightAndTravelInfo = async () => {
+    setOutput([]);
+    try {
+      let flightInfo = await getFlightInfo(flightNumber);
+      if (!flightInfo) {
+        setOutput(prev => [...prev, 'Flight information not found in live data. Trying historic data...']);
+        const destIcao = await getHistoricFlightInfo(flightNumber);
+        if (destIcao) {
+          flightInfo = { destIcao, eta: new Date() };
+        }
+      }
+      
+      if (flightInfo) {
+        const coordinates = await getAirportCoordinates(flightInfo.destIcao);
+        setOutput(prev => [...prev, `Coordinates for flight ${flightNumber} (Destination ICAO: ${flightInfo.destIcao}): ${coordinates}`]);
+        
+        const destination = `${coordinates[0]},${coordinates[1]}`;
+        const travelInfo = await getTravelTime(address, destination);
+        
+        if (travelInfo) {
+          setOutput(prev => [
+            ...prev,
+            `Travel time from your address to the airport: ${travelInfo.duration}`,
+            `Distance: ${travelInfo.distance}`
+          ]);
+
+          const currentTime = new Date();
+          const eta = flightInfo.eta;
+
+          if (currentTime >= eta) {
+            setOutput(prev => [...prev, "The flight has landed. You must go immediately."]);
+          } else {
+            const requiredDepartureTime = new Date(eta.getTime() - (travelInfo.durationValue * 1000));
+            setOutput(prev => [...prev, `The eta is ${eta.toUTCString()} You should leave by: ${requiredDepartureTime.toUTCString()}`]);
+          }
+        } else {
+          setOutput(prev => [...prev, 'Unable to calculate travel time.']);
+        }
+      } else {
+        setOutput(prev => [...prev, "Failed to retrieve flight information. This flight likely isn't airborne."]);
+      }
+    } catch (error) {
+      setOutput(prev => [...prev, `Error: ${error instanceof Error ? error.message : String(error)}`]);
     }
   };
 
   return (
-    <div className="container">
-      <h1>Flight Travel Planner</h1>
-      <div className="input-group">
-        <label htmlFor="flightNumber">Flight Number:</label>
+    <div className="App">
+      <h1>Flight and Travel Information</h1>
+      <div className="input-container">
         <input
-          id="flightNumber"
           type="text"
           value={flightNumber}
           onChange={(e) => setFlightNumber(e.target.value)}
-          placeholder="e.g., AA123"
+          placeholder="Enter flight number"
         />
-      </div>
-      <div className="input-group">
-        <label htmlFor="address">Starting Address:</label>
         <input
-          id="address"
-          ref={inputRef}
           type="text"
           value={address}
           onChange={(e) => setAddress(e.target.value)}
           placeholder="Enter your address"
         />
+        <button onClick={getFlightAndTravelInfo}>Get Information</button>
       </div>
-      <div className="input-group">
-        <label htmlFor="bufferTime">Buffer Time (minutes):</label>
-        <input
-          id="bufferTime"
-          type="number"
-          value={bufferTime}
-          onChange={(e) => setBufferTime(e.target.value)}
-          placeholder="e.g., 90"
-          min="0"
-        />
+      <div className="output-container">
+        {output.map((line, index) => (
+          <p key={index}>{line}</p>
+        ))}
       </div>
-      <button onClick={planTravel} disabled={isLoading}>
-        {isLoading ? 'Planning...' : 'Plan My Travel'}
-      </button>
-      <div className="result" dangerouslySetInnerHTML={{ __html: result }} />
     </div>
   );
-}
+};
 
 export default App;
