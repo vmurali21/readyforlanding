@@ -61,7 +61,7 @@ const App: React.FC = () => {
   };
 
   const getFlightInfo = async (flightNumber: string): Promise<FlightInfo | null> => {
-    const url = `https://fr24api.flightradar24.com/api/live/flight-positions/full?flights=${flightNumber}`;
+    const url = `/fr24api/api/live/flight-positions/full?flights=${flightNumber}`;
     const headers = {
       'Accept': 'application/json',
       'Accept-Version': 'v1',
@@ -96,7 +96,7 @@ const App: React.FC = () => {
   };
 
   const getTravelTime = async (origin: string, destination: string): Promise<TravelInfo | null> => {
-    const url = `https://maps.googleapis.com/maps/api/distancematrix/json?origins=${origin}&destinations=${destination}&key=${API_KEY}`;
+    const url = `/mapsapi/maps/api/distancematrix/json?origins=${origin}&destinations=${destination}&key=${API_KEY}`;
     const data = await fetchData(url);
     const result = data?.rows[0]?.elements[0];
     return result?.status === 'OK' ? {
