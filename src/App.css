@@ -3,90 +3,100 @@
   max-width: 800px;
   margin: 0 auto;
   padding: 20px;
-}
-
-h1 {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+ }
+ 
+ 
+ h1 {
   text-align: center;
   color: #ffffff;
-}
-
-.input-container {
+ }
+ 
+ 
+ .input-container {
   display: flex;
   flex-direction: column;
   gap: 10px;
   margin-bottom: 20px;
-}
-
-input {
+ }
+ 
+ 
+ input {
   padding: 10px;
   font-size: 16px;
   border: 1px solid #ddd;
   border-radius: 4px;
-}
-
-button {
+ }
+ 
+ 
+ button {
   padding: 10px 20px;
   font-size: 16px;
   background-color: #007bff;
   color: white;
   border: none;
   border-radius: 4px;
-  cursor: pointer;
-  transition: background-color 0.3s;
-}
-
-button:hover {
+ }
+ 
+ 
+ button:hover {
   background-color: #0056b3;
-}
-
-.output-container {
+ }
+ 
+ 
+ .output-container {
   background-color: #000000;
   border: 1px solid #e9ecef;
   border-radius: 4px;
   padding: 15px;
-  margin-bottom: 20px;
-  max-height: 200px;
-  overflow-y: auto;
-}
-
-.output-container p {
-  margin: 5px 0;
-  line-height: 1.5;
-}
-
-/* Styles for the Google Map container */
-.map-container {
-  width: 100%;
-  height: 400px;
-  margin-top: 20px;
-  border-radius: 4px;
-  overflow: hidden;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
-  transform: translate(300px, -100px);
-}
-
-/* Autocomplete styles */
-.pac-container {
-  font-family: Arial, sans-serif;
-  border: 1px solid #ddd;
-  border-radius: 0 0 4px 4px;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
-}
-
-.pac-item {
-  padding: 8px;
-  cursor: pointer;
-}
-
-.pac-item:hover {
-  background-color: #f0f0f0;
-}
-
-.pac-item-query {
-  font-size: 14px;
-  color: #333;
-}
-
-.pac-matched {
-  font-weight: bold;
-}
+ }
+ 
+ 
+ .output-container p {
+   margin-bottom :5px;
+   line-height :1.5;
+ }
+ 
+ 
+ .map-container {
+   width :200%;
+   height :300px;
+   margin-top :20px;
+   border-radius :4px;
+   overflow :hidden;
+   box-shadow :0 px rgba(0,0,0,.1);
+ }
+ 
+ 
+ .pac-container {
+   font-family :Arial,sans-serif;
+   border :1px solid #ddd;
+   border-radius :0;
+   box-shadow :0 rgba(0,0,0,.1);
+ }
+ 
+ 
+ .pac-item {
+   padding :8px;
+   cursor:pointer;
+ }
+ 
+ 
+ .pac-item:hover {
+   background-color:#f0f0f0;
+ }
+ 
+ 
+ .pac-item-query {
+   font-size :14px;
+   color:#333;
+ }
+ 
+ 
+ .pac-matched {
+   font-weight:bold;
+ }
+ 
+ 
